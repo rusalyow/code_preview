@@ -1,0 +1,52 @@
+version: '3.7'
+
+services:
+  web:
+    build:
+      context: ./
+      dockerfile: Dockerfile.prod
+    command: gunicorn shop.wsgi:application --bind 0.0.0.0:8000 --timeout 120
+    expose:
+      - 8000
+    volumes:
+      - static_volume:/home/app/web/static
+      - media_volume:/home/app/web/product_images
+    env_file:
+      - ./.env.prod
+    depends_on:
+      - db
+
+  db:
+    image: postgres:14
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    env_file:
+      - ./.env.prod.db
+
+  nginx:
+    build: ./nginx
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - static_volume:/home/app/web/static
+      - media_volume:/home/app/web/product_images
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - web
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./certs:/etc/letsencrypt
+      - ./certs-data:/data/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    depends_on:
+      - nginx
+
+volumes:
+  pg_data:
+  static_volume:
+  media_volume:
+  certs:
+  certs-data:
